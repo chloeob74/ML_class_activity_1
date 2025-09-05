@@ -1,0 +1,96 @@
+---
+title: "Class Activity 1"
+author: "Chloe Barnes"
+date: "2025-09-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+WA_Marketing.Campaign <- read.csv("C:/Users/chloe/Downloads/WA_Marketing-Campaign.csv")
+Clinical_trial <- read.csv("C:/Users/chloe/Downloads/Clinical_trial.csv", stringsAsFactors=TRUE)
+```
+
+# Activity 1
+
+## 1.
+
+Visualize the pain ratings across the three drug formulations. Provide a brief interpretation of what the graph reveals.
+
+```{r}
+trial_data <- Clinical_trial
+```
+
+```{r, echo=FALSE}
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+```
+
+```{r}
+trial_plot <- ggplot(trial_data, aes(x = Drug, y = Pain_Rating, fill = Drug)) +
+  geom_violin(width = 1.0) +
+  geom_boxplot(alpha = 0.7, width = 0.2, color = "black") +
+  geom_jitter(width = 0.2, alpha = 0.6, size = 2) +
+  labs(titles = "Pain Rating by Drub Formulations",
+       x = "Drug Formulation",
+       y = "Pain Rating (1-10 scale)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+trial_plot
+```
+
+From the graph, we see that Drug A appears to be the most effective, as it has the lowest pain ratings. For Drug A, the median pain rating is around 4, and the range of ratings are concentrated between 2 and 5. For Drug B and Drug C, the medians are very similar at around 6. Drug B has a wider spread than Drug C. The visualized data seems to suggest that their may be differences in the the performance of Drug A vs. Drug B.
+
+## 2.
+
+As the Data Scientist on a team of researchers at the pharmaceutical company, your main task is to evaluate which drug formulation most effectively reduces migraine pain. Formulate the appropriate hypotheses, perform the relevant statistical test(s), and communicate each step of your analysis and results in clear, accessible written language for non-technical team members.
+
+**1. Study question:**
+
+```         
+Do the three drug formulations differ in their effectiveness for reducign migraine pain?
+```
+
+**2. Hypotheses**
+
+-   Null Hypothesis (H~0~):
+
+    The average pain ratings are the same across all three drug formaulations. ${\mu}_A = {\mu}_B = {\mu}_C$
+
+-   Alternative Hypothesis (H~A~):
+
+    At least one formulation has a different average pain rating. Not all group means are equal.
+
+**3. Statistical Testing**
+
+-   I will use the One-Way ANOVA (Analysis of Variance) test because we are comparing three groups simultaneously.
+
+    Key Assumptions:
+
+    1.  Independence: Each response is independent
+    2.  Normality: Pain ratings are approximately normally distributed
+    3.  Equal Variance: Variability is similar across groups
+
+```{r}
+trial_test <- aov(Pain_Rating ~ Drug, data = trial_data)
+summary(trial_test)
+```
+
+From the ANOVA test, F = 11.91 and p = 0.000256.
+
+Because p \< 0.05, there are statistically significant differences between the three drug formulations.
+
+**4. Post-hoc Tests**
+
+Because the ANOVA test indicated a significant result, I will use a Post-hoc Tukey HSD test to identify which specific groups are different from each other.
+
+```{r}
+trial_post <- TukeyHSD(trial_test)
+plot(trial_post, las=1)
+trial_post
+```
+
+The test shows that the difference of means for the B-A comparison and the C-A comparison are both statistically significant because the confidence intervals exclude 0 for both comparisons. The difference of means of C-B is not statistically significant because 0 is included in the confidence interval.
+
+## Activity 2
