@@ -1,0 +1,600 @@
+---
+title: "Class Activity 1"
+author: "Chloe Barnes"
+date: "2025-09-06"
+output:
+  pdf_document:
+    toc: true
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 10, fig.height = 6)
+
+# Load required libraries
+library(tidyverse)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+
+# Load the data
+data <- read.csv("C:/Users/chloe/UVA_Classes/Machine Learning/ML_class_activity_1/WA_Marketing-Campaign.csv")
+Clinical_trial <- read.csv("C:/Users/chloe/UVA_Classes/Machine Learning/ML_class_activity_1/Clinical_trial.csv", stringsAsFactors=TRUE)
+
+# Convert Promotion and week to categorical variables as suggested
+data <- data %>%
+  mutate(
+    Promotion = as.character(Promotion),  # Convert to categorical
+    week = as.character(week),            # Convert to categorical
+    MarketSize = factor(MarketSize, levels = c("Small", "Medium", "Large"))
+  )
+```
+# Activity 1
+
+## 1. Visualize the Data
+
+**Visualize the pain ratings across the three drug formulations. Provide a brief interpretation of what the graph reveals.**
+
+```{r}
+trial_data <- Clinical_trial
+```
+
+```{r, echo=FALSE}
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(smplot2)
+library(plotly)
+library(flexdashboard)
+library(DT)
+library(tidyr)
+library(kableExtra)
+library(htmltools)
+library(car)
+library(effsize)
+```
+
+```{r}
+trial_plot <- ggplot(trial_data, aes(x = Drug, y = Pain_Rating)) +
+  geom_violin(aes(fill = Drug), width = 1.0) +
+  scale_color_manual(values = sm_palette(3)) +
+  scale_fill_manual(values = sm_palette(3)) +
+  geom_boxplot(alpha = 0.7, width = 0.2) +
+  geom_jitter(width = 0.2, alpha = 0.8, size = 2) +
+  labs(title = "Pain Rating by Drug Formulations",
+       x = "Drug Formulation",
+       y = "Pain Rating (1-10 scale)") +
+  theme_minimal() +
+  sm_hgrid() +
+  theme(legend.position = "none")
+trial_plot
+```
+
+From the graph, we see that Drug A appears to be the most effective, as it has the lowest pain ratings. For Drug A, the median pain rating is around 4, and the range of ratings are concentrated between 2 and 5. For Drug B and Drug C, the medians are very similar at around 6. Drug B has a wider spread than Drug C. The visualized data seems to suggest that their may be differences in the the performance of Drug A vs. Drug B.
+
+## 2. Statistical Analyses
+
+**As the Data Scientist on a team of researchers at the pharmaceutical company, your main task is to evaluate which drug formulation most effectively reduces migraine pain. Formulate the appropriate hypotheses, perform the relevant statistical test(s), and communicate each step of your analysis and results in clear, accessible written language for non-technical team members.**
+
+**1. Study question:**
+
+```         
+Do the three drug formulations differ in their effectiveness for reducign migraine pain?
+```
+
+**2. Hypotheses**
+
+-   Null Hypothesis (H~0~):
+
+    The average pain ratings are the same across all three drug formaulations. ${\mu}_A = {\mu}_B = {\mu}_C$
+
+-   Alternative Hypothesis (H~A~):
+
+    At least one formulation has a different average pain rating. Not all group means are equal.
+
+**3. Statistical Testing**
+
+-   I will use the One-Way ANOVA (Analysis of Variance) test because we are comparing three groups simultaneously.
+
+    **Key Assumptions:**
+
+    1.  Independence: Each response is independent
+    2.  Normality: Pain ratings are approximately normally distributed
+    3.  Equal Variance: Variability is similar across groups
+
+```{r}
+trial_test <- aov(Pain_Rating ~ Drug, data = trial_data)
+summary(trial_test)
+```
+
+From the ANOVA test, F = 11.91 and p = 0.000256.
+
+Because p \< 0.05, there are statistically significant differences between the three drug formulations.
+
+**4. Post-hoc Tests**
+
+Because the ANOVA test indicated a significant result, I will use a Post-hoc Tukey HSD test to identify which specific groups are different from each other.
+
+```{r}
+trial_post <- TukeyHSD(trial_test)
+plot(trial_post, las=1)
+trial_post
+```
+
+The test shows that the difference of means for the B-A comparison and the C-A comparison are both statistically significant because the confidence intervals exclude 0 for both comparisons. The difference of means of C-B is not statistically significant because 0 is included in the confidence interval.
+
+**5. Results and Interpretation**
+
+-   Patients taking Drug A consistently reported lower pain ratings compared to those on Drug B or C
+-   There is no meaningful difference between Drug B or C
+-   This means Drug A is the most effective at reducing migraine pain
+-   **What this means:** The analysis shows that Drub A outperforms both Drug B and C in reducing migraine pain.
+-   **How confident are we?** We are very confident. The results are statistically significant, meaning the differences are highly unlikely to be due to random chance
+-   **Next Steps:** Based on these findings, further research and trials should prioritize Drug A as the leading candidate for development
+
+## 3. Discussion
+
+**Suppose we wanted to build a supervised learning model using this dataset. What would be the prediction goal? Discuss in what situations a pharmaceutical company might prioritize inference over prediction, and vice versa.**
+
+**1. Prediction Goal** If we wanted to build a supervised learning model, the goal would be to predict patient pain rating (1-10 scale) given inputs such as:
+
+-   Which drug formulation was administered (A, B, or C)
+-   Patient characteristics (is available) such as age, gender, migraine history, dosage, etc.
+-   Prediction target (Y): Pain Rating
+-   Coefficients (Features) (X): Drug Formulation and possibly other patient/clinical variables
+
+**2. Inference vs. Prediction**
+
+**When to prioritize inference**
+
+-   a pharmaceutical company would prioritize inference when the goal is to understand *why* and *how* pain ratings differ between formulations
+-   In this context, the pharmaceutical company may want to identify the most effective formulation, estimate the size of the effect (e.g "Drug A lowers pain scores by \~2 points compared to Drug B"), and/or provide scientific justification for regulatory approval (e.g. the FDA)
+-   In this case, inference would emphasize causality and statistical significance.
+
+**When to prioritize prediction**
+
+-   a pharmaceutical company would prioritize prediction when the goal is to forecast an individual patient's pain outcome given their characteristics and the assigned drug.
+-   In this context, the company may want to develop decision support tools for doctors ("Based on your patient's profile, which drug is likely to be most effective?") and/or personalize treatments
+-   In this case, prediction emphasizes accuracy for new cases, not just explanation.
+
+```{r}
+# Display basic info about the dataset
+cat("Dataset contains", nrow(data), "observations and", ncol(data), "variables\n")
+cat("Campaigns:", unique(data$Promotion), "\n")
+cat("Weeks:", unique(data$week), "\n")
+cat("Market Sizes:", levels(data$MarketSize), "\n")
+```
+
+# Activity 2
+
+## 1. Exploratory Data Analysis
+
+### Dataset Overview
+
+```{r dataset_overview}
+# Basic summary statistics
+summary(data)
+
+# Check data structure
+str(data)
+```
+
+### Sales by Promotion
+
+```{r sales_by_promotion, fig.width=8, fig.height=5}
+# Calculate summary statistics by promotion
+sales_summary <- data %>%
+  group_by(Promotion) %>%
+  summarise(
+    Mean_Sales = mean(SalesInThousands),
+    Median_Sales = median(SalesInThousands),
+    SD_Sales = sd(SalesInThousands),
+    Count = n(),
+    .groups = 'drop'
+  ) %>%
+  mutate(Promotion = paste("Campaign", Promotion))
+
+# Display summary table
+kable(sales_summary, digits = 2, caption = "Sales Summary by Campaign") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Bar plot of average sales by promotion
+ggplot(data, aes(x = factor(Promotion), y = SalesInThousands)) +
+  geom_boxplot(aes(fill = factor(Promotion)), alpha = 0.7) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "red") +
+  labs(title = "Sales Distribution by Marketing Campaign",
+       x = "Campaign",
+       y = "Sales ($ Thousands)",
+       fill = "Campaign") +
+  scale_x_discrete(labels = c("Campaign 1", "Campaign 2", "Campaign 3")) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Bar chart of mean sales
+data %>%
+  group_by(Promotion) %>%
+  summarise(Mean_Sales = mean(SalesInThousands), .groups = 'drop') %>%
+  ggplot(aes(x = factor(Promotion), y = Mean_Sales, fill = factor(Promotion))) +
+  geom_col() +
+  geom_text(aes(label = paste0("$", round(Mean_Sales, 1), "K")), 
+            vjust = -0.5, size = 4) +
+  labs(title = "Average Sales by Marketing Campaign",
+       x = "Campaign",
+       y = "Average Sales ($ Thousands)") +
+  scale_x_discrete(labels = c("Campaign 1", "Campaign 2", "Campaign 3")) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+Just observing the bar plot of average sales by marketing campaign, we can make note that there may be possible differences in Sale by Promotion. Campaign 2 appears to have a lower average sales (\$47.3K) than compared to the other two campaigns (\$58.1K for Campaign 1 and \$55.4K for Campaign 2). This will require more testing to confirm.
+
+### Weekly Sales Trends Across Promotions
+
+```{r weekly_trends, fig.width=8, fig.height=5}
+# Calculate weekly averages by promotion
+weekly_trends <- data %>%
+  group_by(week, Promotion) %>%
+  summarise(Mean_Sales = mean(SalesInThousands), .groups = 'drop')
+
+# Line plot showing weekly trends
+ggplot(weekly_trends, aes(x = week, y = Mean_Sales, color = factor(Promotion), group = Promotion)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  labs(title = "Weekly Sales Trends by Campaign",
+       x = "Week",
+       y = "Average Sales ($ Thousands)",
+       color = "Campaign") +
+  scale_color_discrete(labels = c("Campaign 1", "Campaign 2", "Campaign 3")) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# Summary table of weekly trends
+weekly_summary <- weekly_trends %>%
+  pivot_wider(names_from = Promotion, values_from = Mean_Sales, names_prefix = "Campaign_")
+
+kable(weekly_summary, digits = 2, caption = "Average Sales by Week and Campaign") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+From the line plot, we again can observe potential differences in average sales by campaign when accounting for weekly sales trends. Campaign 2 appears to have much lower sales than campaign 1 or 3. Campaign 1 appears to consistently have higher sales across all four weeks of Promotion. This prompts further testing.
+
+### Sales by Market Size
+
+```{r sales_by_market_size, fig.width=8, fig.height=5}
+# Summary statistics by market size
+market_summary <- data %>%
+  group_by(MarketSize) %>%
+  summarise(
+    Mean_Sales = mean(SalesInThousands),
+    Median_Sales = median(SalesInThousands),
+    SD_Sales = sd(SalesInThousands),
+    Count = n(),
+    .groups = 'drop'
+  )
+
+kable(market_summary, digits = 2, caption = "Sales Summary by Market Size") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Box plot by market size
+ggplot(data, aes(x = MarketSize, y = SalesInThousands, fill = MarketSize)) +
+  geom_boxplot(alpha = 0.7) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "red") +
+  labs(title = "Sales Distribution by Market Size",
+       x = "Market Size",
+       y = "Sales ($ Thousands)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Interaction plot: Market Size x Campaign
+interaction_summary <- data %>%
+  group_by(MarketSize, Promotion) %>%
+  summarise(Mean_Sales = mean(SalesInThousands), .groups = 'drop')
+
+ggplot(interaction_summary, aes(x = MarketSize, y = Mean_Sales, fill = factor(Promotion))) +
+  geom_col(position = "dodge") +
+  labs(title = "Campaign Performance by Market Size",
+       x = "Market Size",
+       y = "Average Sales ($ Thousands)",
+       fill = "Campaign") +
+  scale_fill_discrete(labels = c("Campaign 1", "Campaign 2", "Campaign 3")) +
+  theme_minimal()
+```
+
+### Additional Exploratory Analysis
+
+```{r additional_eda}
+# Distribution of sales
+ggplot(data, aes(x = SalesInThousands)) +
+  geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
+  facet_wrap(~paste("Campaign", Promotion)) +
+  labs(title = "Distribution of Sales by Campaign",
+       x = "Sales ($ Thousands)",
+       y = "Frequency") +
+  theme_minimal()
+```
+
+By looking at the distributions of sales by Campaign, it calls into
+question the normality assumption of our data. The distributions appear
+bi-modal. We should test for normality before running further
+statistical tests, as this can affect our approach to the data.
+
+## 2. Research Questions and Statistical Inference
+
+### Research Question 1: Campaign Effectiveness
+
+**Question**: Do the three marketing campaigns differ significantly in
+their sales performance?
+
+**Hypotheses**:
+
+-   H₀: μ₁ = μ₂ = μ₃ (no significant difference between campaign means)
+-   H₁: At least one campaign mean differs significantly from the others
+
+**Normality Test**:
+
+```{r}
+# One-way ANOVA
+campaign_anova <- aov(SalesInThousands ~ Promotion, data = data)
+
+# Normality Check
+shapiro.test(residuals(campaign_anova))
+```
+
+From the Shapiro-Wilk normality test, we got a p-value of 3.155e-16,
+which is less than 0.05. This tells us that the normality assumption
+would be incorrect an we should not assume the data is normally
+distributed. We should use non-parametric methods to test the data.
+
+**Statistical Testing**
+
+```{r}
+# Kruskal Wallis Test
+kruskal.test(SalesInThousands ~ Promotion, data = data)
+
+# Pairwise Dunn tests with multiplicity control
+FSA::dunnTest(SalesInThousands ~ Promotion, data = data)
+
+```
+
+**Findings**:
+
+The Kruskal-Wallis test indicated differences among campaigns (p =
+2.674e-12, which is less than 0.05). I next performed Dunn pairwise
+tests to compare Campaigns and determine which ones were different. The
+output showed:
+
+-   Campaign 1 vs 2: Z = 7.02, p_adj = 6.46×10⁻¹² → Campaign 1 \>
+    Campaign 2.
+-   Campaign 2 vs 3: Z = −5.17, p_adj = 4.72×10⁻⁷ → Campaign 3 \>
+    Campaign 2.
+-   Campaign 1 vs 3: Z = 1.97, p_adj = 0.0486 → Campaign 1 ≳ Campaign 3
+    (small, borderline at α = 0.05).
+
+**Interpretation**:
+
+Campaign 2 under-performs both Campaigns 1 and 3 by a large margin.
+Campaigns 1 and 3 are similar, with a modest edge for 1 that meets the
+0.05 threshold.
+
+### Research Question 2: Market Size and Campaign Interaction
+
+**Question**: Does campaign effectiveness vary by market size?
+
+**Hypotheses**:
+
+-   H₀: No interaction between campaign type and market size
+-   H₁: Campaign effectiveness varies significantly by market size
+
+**Statistical Testing**
+
+For this analysis, I used a Two-way ANOVA test
+
+```{r interaction_analysis, fig.width=8, fig.height=5}
+library(emmeans)
+library(effectsize)
+# Two-way ANOVA
+interaction_anova <- aov(SalesInThousands ~ Promotion * MarketSize, data = data)
+summary(interaction_anova)
+
+eta_squared(interaction_anova, partial = TRUE)
+emm <- emmeans(interaction_anova, ~ Promotion | MarketSize)
+emm_pairs <- pairs(emm, adjust = "tukey")
+emm_pairs
+plot(emm_pairs, comparisons = TRUE)
+
+# Interaction plot
+interaction.plot(data$MarketSize, data$Promotion, data$SalesInThousands,
+                 main = "Interaction Plot: Campaign × Market Size",
+                 xlab = "Market Size", ylab = "Mean Sales",
+                 trace.label = "Campaign")
+```
+
+**Findings**: There were strong main effects of Promotion(F = 49.611, p
+\< 2e-16) and MarketSize (F = 337.136 and p \< 2e-16), and a Promotion X
+MarketSize Interaction (F = 4.586, p = 0.00119). This indicates the size
+of the campaign differences changes across market sizes. Therefore, I
+examined simple effects (Tukey-adjusted)
+
+```         
+**Small Markets**
+
+- 1 vs 2: +9.32, p = 0.026 --\> Campaign 1 \> Campaign 2
+- 2 vs 3: -8.70, p = 0.033 --> Campaign 3 > Campaign 2
+- 1 vs 3: +0.65, p = 0.978 --> Campaign 1 $\approx$ Campaign 3 (no difference)
+
+**Medium Markets**
+- 1 vs 2: +8.56, p < 0.0001 → Campaign 1 > 2
+- 2 vs 3: −6.36, p < 0.0001 → Campaign 3 > 2
+- 1 vs 3: +2.20, p = 0.298 → Camapign 1 ≈ Campaign 3 (no difference)
+
+**Large Markets**
+- 1 vs 2: +14.91, p < 0.0001 → Campaign 1 > 2
+- 2 vs 3: −16.88, p < 0.0001 → Campaign 3 > 2
+- 1 vs 3: -1.97, p = 0.621 → Camapign 1 ≈ Campaign 3 (point estimate favors 3 slightly, not significant)
+```
+
+**Interpretation**:
+
+Market size is the biggest driver of sales, but campaign choices still
+matter. The interaction shows that how far ahead the better campaigns
+are depends on market size. Across all market sizes, Campaign 2
+under-performs both Campaigns 1 and 3 by substantial, statistically
+significant margins. Campaigns 1 and 3 are statistically
+indistinguishable within each market size.
+
+### Research Question 3: Temporal Stability
+
+**Question**: Does campaign effectiveness remain stable over the 4-week
+period?
+
+**Hypotheses**:
+
+-   H₀: No significant change in campaign effectiveness over time
+-   H₁: Campaign effectiveness changes significantly over time
+
+**Statistical Testing**
+
+```{r temporal_analysis}
+# Two-way ANOVA for temporal effects
+temporal_anova <- aov(SalesInThousands ~ Promotion * week, data = data)
+summary(temporal_anova)
+
+
+# Check for temporal trends
+temporal_summary <- data %>%
+  group_by(week, Promotion) %>%
+  summarise(Mean_Sales = mean(SalesInThousands), .groups = 'drop')
+
+print(temporal_summary)
+```
+
+**Findings**: The analysis shows no significant interaction between
+Campaign and Week (p \> 0.05), indicating that campaign effectiveness
+remains stable over the 4-week test period.
+
+## 3. Statistical Inference vs. Predictive Modeling
+
+### Why Emphasize Statistical Inference
+
+For this fast-food chain's marketing campaign decision, **statistical
+inference is more appropriate than predictive modeling** for several key
+reasons:
+
+-   **Decision Goal**: The chain needs to select ONE campaign for
+    chain-wide deployment
+-   **Causal Understanding**: They need to understand WHY Campaign 1 is
+    better, not just predict future sales
+-   **Risk Management**: Statistical significance provides confidence
+    for large-scale investment decisions
+-   **Stakeholder Communication**: P-values and confidence intervals are
+    easily interpretable for executives
+
+#### When Predictive Modeling Would Be Useful
+
+Predictive modeling would be more appropriate for:
+
+-   Forecasting individual store sales
+-   Optimizing campaign elements (timing, messaging, targeting)
+-   Handling complex non-linear relationships
+-   Real-time performance monitoring
+
+### Market Size Influence on Promotion Effectiveness
+
+```{r market_size_analysis}
+# Detailed market size analysis
+market_effects <- data %>%
+  group_by(MarketSize, Promotion) %>%
+  summarise(
+    Mean_Sales = mean(SalesInThousands),
+    SD_Sales = sd(SalesInThousands),
+    Count = n(),
+    .groups = 'drop'
+  ) %>%
+  arrange(MarketSize, Promotion)
+
+kable(market_effects, digits = 2, caption = "Campaign Performance by Market Size") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Calculate percentage differences
+large_vs_medium <- (market_effects$Mean_Sales[market_effects$MarketSize == "Large" & market_effects$Promotion == "1"] - 
+                   market_effects$Mean_Sales[market_effects$MarketSize == "Medium" & market_effects$Promotion == "1"]) /
+                   market_effects$Mean_Sales[market_effects$MarketSize == "Medium" & market_effects$Promotion == "1"] * 100
+
+cat("Large markets generate", round(large_vs_medium, 0), "% higher sales than medium markets\n")
+```
+
+#### How market size can shape effectiveness and sales:
+
+The ANOVA shows MarketSize is the dominant driver.
+
+Mechanisms:
+
+-   Baseline demand/foot traffic: Larger markets have more potential
+    buyers -\> higher absolute sales and bigger headroom for lift
+-   Media reach & saturation: The same spend/creative scales better in
+    larger markets
+-   Competitive intensity: IN big markets, differentiated creatives may
+    matter more. In small markets, relationships/local presence may be
+    more important
+-   Operational constraints: Stockouts or staffing can cap realized
+    lift. Larger markets might be better staffed/supplied
+
+**What I found**: Within Small and Medium markets, Campaigns 1 and 3
+perform similarly and both beat campaign 2. In Large markets, the gap
+between Campaigns 1/3 and 2 grows even more (there are bigger absolute
+differences). The ranking is stable (2 under-performs everywhere), but
+the size of the gap changes with MarketSize
+
+### Store Age Influence on Sales
+
+```{r store_age_detailed}
+# Store age analysis
+age_analysis <- data %>%
+  mutate(AgeGroup = cut(AgeOfStore, breaks = c(0, 3, 6, 9, Inf), 
+                       labels = c("1-3 years", "4-6 years", "7-9 years", "10+ years"))) %>%
+  group_by(AgeGroup, Promotion) %>%
+  summarise(
+    Mean_Sales = mean(SalesInThousands),
+    Count = n(),
+    .groups = 'drop'
+  )
+
+kable(age_analysis, digits = 2, caption = "Campaign Performance by Store Age") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Correlation between age and sales
+cor_age_sales <- cor(data$AgeOfStore, data$SalesInThousands)
+cat("Correlation between store age and sales:", round(cor_age_sales, 3), "\n")
+```
+
+#### How Store age (AgeOfStore) could matter
+
+Store age can be a proxy for multiple factors:
+
+-   Customer base maturity & loyalty: Older stores often have
+    established repeat customers, whereas newer stores may be more
+    responsive to awareness-style campaigns.
+-   Facility condition/location: Older store may be located in more
+    well-known, high-traffic areas. Conversely, they may be located in
+    aging retail corridors. Age can correlate with market demographics
+    and with MarketSize (which can lead to potential confounding)
+
+**What I found**:
+
+Store age has a weak correlation with sales performance (r = -0.029).
+For this analysis, chain-wide rollout of chosen campaign may be
+appropriate regardless of store maturity.
+
+### Conclusion and Recommendations
+
+Based on this statistical analysis:
+
+Roll out Campaign 1 or 3 across sizes; avoid 2. The choice between 1 and
+3 can be mode on creatie fit or cost since they are statistically
+indistinguishable within each MarketSize.

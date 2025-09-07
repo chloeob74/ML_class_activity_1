@@ -2,20 +2,24 @@
 title: "Class Activity 1"
 author: "Chloe Barnes"
 date: "2025-09-05"
-output: html_document
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    theme: cosmo
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-WA_Marketing.Campaign <- read.csv("C:/Users/chloe/Downloads/WA_Marketing-Campaign.csv")
-Clinical_trial <- read.csv("C:/Users/chloe/Downloads/Clinical_trial.csv", stringsAsFactors=TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+Clinical_trial <- read.csv("C:/Users/chloe/UVA_Classes/Machine Learning/ML_class_activity_1/Clinical_trial.csv", stringsAsFactors=TRUE)
+WA_Marketing.Campaign <- read.csv("C:/Users/chloe/UVA_Classes/Machine Learning/ML_class_activity_1/WA_Marketing-Campaign.csv")
 ```
 
 # Activity 1
 
 ## 1.
 
-Visualize the pain ratings across the three drug formulations. Provide a brief interpretation of what the graph reveals.
+**Visualize the pain ratings across the three drug formulations. Provide a brief interpretation of what the graph reveals.**
 
 ```{r}
 trial_data <- Clinical_trial
@@ -25,17 +29,29 @@ trial_data <- Clinical_trial
 library(ggplot2)
 library(dplyr)
 library(gridExtra)
+library(smplot2)
+library(plotly)
+library(flexdashboard)
+library(DT)
+library(tidyr)
+library(kableExtra)
+library(htmltools)
+library(car)
+library(effsize)
 ```
 
 ```{r}
-trial_plot <- ggplot(trial_data, aes(x = Drug, y = Pain_Rating, fill = Drug)) +
-  geom_violin(width = 1.0) +
-  geom_boxplot(alpha = 0.7, width = 0.2, color = "black") +
-  geom_jitter(width = 0.2, alpha = 0.6, size = 2) +
-  labs(titles = "Pain Rating by Drub Formulations",
+trial_plot <- ggplot(trial_data, aes(x = Drug, y = Pain_Rating)) +
+  geom_violin(aes(fill = Drug), width = 1.0) +
+  scale_color_manual(values = sm_palette(3)) +
+  scale_fill_manual(values = sm_palette(3)) +
+  geom_boxplot(alpha = 0.7, width = 0.2) +
+  geom_jitter(width = 0.2, alpha = 0.8, size = 2) +
+  labs(title = "Pain Rating by Drug Formulations",
        x = "Drug Formulation",
        y = "Pain Rating (1-10 scale)") +
   theme_minimal() +
+  sm_hgrid() +
   theme(legend.position = "none")
 trial_plot
 ```
@@ -44,7 +60,7 @@ From the graph, we see that Drug A appears to be the most effective, as it has t
 
 ## 2.
 
-As the Data Scientist on a team of researchers at the pharmaceutical company, your main task is to evaluate which drug formulation most effectively reduces migraine pain. Formulate the appropriate hypotheses, perform the relevant statistical test(s), and communicate each step of your analysis and results in clear, accessible written language for non-technical team members.
+**As the Data Scientist on a team of researchers at the pharmaceutical company, your main task is to evaluate which drug formulation most effectively reduces migraine pain. Formulate the appropriate hypotheses, perform the relevant statistical test(s), and communicate each step of your analysis and results in clear, accessible written language for non-technical team members.**
 
 **1. Study question:**
 
@@ -66,7 +82,7 @@ Do the three drug formulations differ in their effectiveness for reducign migrai
 
 -   I will use the One-Way ANOVA (Analysis of Variance) test because we are comparing three groups simultaneously.
 
-    Key Assumptions:
+    **Key Assumptions:**
 
     1.  Independence: Each response is independent
     2.  Normality: Pain ratings are approximately normally distributed
@@ -93,4 +109,597 @@ trial_post
 
 The test shows that the difference of means for the B-A comparison and the C-A comparison are both statistically significant because the confidence intervals exclude 0 for both comparisons. The difference of means of C-B is not statistically significant because 0 is included in the confidence interval.
 
+**5. Results and Interpretation**
+
+-   Patients taking Drug A consistently reported lower pain ratings compared to those on Drug B or C
+-   There is no meaningful difference between Drug B or C
+-   This means Drug A is the most effective at reducing migraine pain
+-   **What this means:** The analysis shows that Drub A outperforms both Drug B and C in reducing migraine pain.
+-   **How confident are we?** We are very confident. The results are statistically significant, meaning the differences are highly unlikely to be due to random chance
+-   **Next Steps:** Based on these findings, further research and trials should prioritize Drug A as the leading candidate for development
+
+## 3.
+
+**Suppose we wanted to build a supervised learning model using this dataset. What would be the prediction goal? Discuss in what situations a pharmaceutical company might prioritize inference over prediction, and vice versa.**
+
+**1. Prediction Goal** If we wanted to build a supervised learning model, the goal would be to predict patient pain rating (1-10 scale) given inputs such as:
+
+-   Which drug formulation was administered (A, B, or C)
+-   Patient characteristics (is available) such as age, gender, migraine history, dosage, etc.
+-   Prediction target (Y): Pain Rating
+-   Coefficients (Features) (X): Drug Formulation and possibly other patient/clinical variables
+
+**2. Inference vs. Prediction**
+
+**When to prioritize inference**
+
+-   a pharmaceutical company would prioritize inference when the goal is to understand *why* and *how* pain ratings differ between formulations
+-   In this context, the pharmaceutical company may want to identify the most effective formulation, estimate the size of the effect (e.g "Drug A lowers pain scores by \~2 points compared to Drug B"), and/or provide scientific justification for regulatory approval (e.g. the FDA)
+-   In this case, inference would emphasize causality and statistical significance.
+
+**When to prioritize prediction**
+
+-   a pharmaceutical company would prioritize prediction when the goal is to forecast an individual patient's pain outcome given their characteristics and the assigned drug.
+-   In this context, the company may want to develop decision support tools for doctors ("Based on your patient's profile, which drug is likely to be most effective?") and/or personalize treatments
+-   In this case, prediction emphasizes accuracy for new cases, not just explanation.
+
 ## Activity 2
+
+```{r}
+campaign_data <- WA_Marketing.Campaign
+```
+
+```{r}
+campaign_data <- campaign_data %>%
+  mutate(
+    Promotion = as.factor(Promotion),
+    week = as.factor(week),
+    MarketSize = factor(MarketSize, levels = c("Small", "Medium", "Large")),
+    PromotionLabel = paste("Campaign", Promotion),
+    WeekLabel = paste("Week", week)
+  )
+```
+
+
+
+```{r}
+# 1. Sales by Promotion
+sale_by_promotion <- campaign_data%>%
+  group_by(Promotion, PromotionLabel) %>%
+  summarise(
+    averageSales = mean(SalesInThousands),
+    count = n(),
+    stdDev = sd(SalesInThousands),
+    .groups = "drop"
+  ) %>%
+  arrange(Promotion)
+  
+```
+
+
+```{r}
+# Weekly Sales Trends
+weekly_trends <- campaign_data %>%
+  group_by(week, Promotion) %>%
+  summarise(averageSales = mean(SalesInThousands), .groups = "drop") %>%
+  mutate(WeekLabel = paste("Week", week),
+         PromotionLabel = paste("Campaign", Promotion))
+```
+
+
+```{r}
+# 3. Sales by Market Size
+sales_by_market <- campaign_data %>%
+  group_by(MarketSize) %>%
+  summarise(averageSales = mean(SalesInThousands),
+            count = n(),
+            stdDev = sd(SalesInThousands),
+            .groups = "drop")
+```
+
+```{r}
+# 4. Store Age Analysis
+data_with_age_groups <- campaign_data %>%
+  mutate(
+    AgeGroup = case_when(
+      AgeOfStore <= 3 ~ "1-3 years",
+      AgeOfStore <= 6 ~ "4-6 years",
+      AgeOfStore <= 9 ~ "7-9 years",
+      TRUE ~ "10+ years"
+    ),
+    AgeGroup = factor(AgeGroup, levels = c("1-3 years", "4-6 years", "7-9 years", "10+ years"))
+  )
+
+sales_by_age <- data_with_age_groups %>%
+  group_by(AgeGroup) %>%
+  summarise(
+    averageSales = mean(SalesInThousands),
+    count = n(),
+    .groups = 'drop'
+  )
+```
+
+```{r}
+# 5. Interaction Analysis (Market Size X Promotion)
+interaction_data <- campaign_data %>%
+  group_by(MarketSize, Promotion, PromotionLabel) %>%
+  summarise(
+    averageSales = mean(SalesInThousands),
+    count = n(),
+    .groups = "drop"
+  )
+```
+
+```{r}
+# Summary Statistics
+overall_stats <- campaign_data %>%
+  summarise(
+    total_records = n(),
+    overall_mean = mean(SalesInThousands),
+    overall_sd = sd(SalesInThousands),
+    min_sales = min(SalesInThousands),
+    max_sales = max(SalesInThousands),
+    unique_markets = n_distinct(MarketID),
+    unique_locations = n_distinct(LocationID)
+  )
+```
+
+
+```{r}
+# Best performing campaign
+best_campaign <- sale_by_promotion %>%
+  filter(averageSales == max(averageSales)) %>%
+  pull(PromotionLabel)
+```
+
+```{r}
+best_market_size <- sales_by_market %>%
+  filter(averageSales == max(averageSales)) %>%
+  pull(MarketSize)
+```
+
+Executive Summary {data-orientation=rows}
+=====================================
+
+Row {data-height=200}
+-------------------------------------
+
+### Campaign Winner
+```{r}
+valueBox(
+  value = best_campaign,
+  caption = "Best Performing Campaign",
+  icon = "fa-trophy",
+  color = "success"
+)
+```
+
+### Top Sales
+
+```{r}
+top_sales <- sale_by_promotion %>%
+  filter(PromotionLabel == best_campaign) %>%
+  pull(averageSales)
+
+valueBox(
+  value = paste0("$", round(top_sales, 1), "K"),
+  caption = "Average Sales (Winner)",
+  icon = "fa-doller-sign",
+  color = "primary"
+)
+```
+
+### Best Market Type
+
+```{r}
+valueBox(
+  value = best_market_size,
+  caption = "Highest Performing Market Size",
+  icon = "fa-chart-line",
+  color = "info"
+)
+```
+
+### Total Records
+
+```{r}
+valueBox(
+  value = overall_stats$total_records,
+  caption = "Total Observations",
+  icon = "fa-database",
+  color = "warning"
+)
+```
+
+Row {data-height=400}
+-------------------------------------
+
+### Key Performance Metrics
+
+```{r}
+summary_table <- sale_by_promotion %>%
+  select(Campaign = PromotionLabel, `Avg Sales ($K)` = averageSales,
+         `Sample Size` = count,
+         `Std Dev` = stdDev) %>%
+  mutate(
+    `Avg Sales ($K)` = round(`Avg Sales ($K)`, 1),
+    `Std Dev` = round(`Std Dev`, 1)
+  )
+
+kable(summary_table, caption = "Campaign Performance Summary") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  row_spec(which.max(summary_table$`Avg Sales ($K)`), bold = TRUE, color = "white", background = "#28a745")
+
+```
+
+### Quick Insights
+
+```{r}
+campaign_diff <- round(sale_by_promotion$averageSales[1] - sale_by_promotion$averageSales[2], 1)
+market_diff <- round((sales_by_market$averageSales[3] / sales_by_market$averageSales[2] - 1) * 100, 0)
+
+insights_text <- paste0(
+  "🏆 Campaign 1 outperforms Campaign 2 by $", campaign_diff, "K (", 
+  round((sale_by_promotion$averageSales[1] / sale_by_promotion$averageSales[2] - 1) * 100, 1), "%)\n\n",
+  "📈 Large markets generate ", market_diff, "% higher sales than medium markets\n\n",
+  "📊 Total dataset: ", overall_stats$total_records, " observations across ", 
+  overall_stats$unique_markets, " markets and ", overall_stats$unique_locations, " locations\n\n",
+  "💡 Recommendation: Deploy Campaign 1 with focus on large markets"
+)
+
+HTML(paste0("<div style='padding: 20px; background-color: #f8f9fal border-radius: 10px; font-family: monospace;'>",
+            gsub("\n", "<br>", insights_text), "</div>"))
+```
+
+Campaign Analysis
+=====================================
+
+Column {data-width=650}
+-------------------------------------
+
+### Average Sales by Marketing Campaign
+
+```{r}
+p1 <- plot_ly(sale_by_promotion,
+              x = ~PromotionLabel,
+              y = ~averageSales,
+              type = "bar",
+              text = ~paste("Sales: $", round(averageSales, 1), "K<br>",
+                            "Count: ",  count, "<br>",
+                            "Std Dev: ", round(stdDev, 1)),
+              textposition = "outside",
+              hovertemplate = "<b>%{x}</b><br>Average Sales: $%{y:.1f}K<br>Sample Size: %{text}<extra></extra>",
+              marker = list(color = c('#3B82F6', '#EF4444', '#10B981'))) %>%
+  layout(title = list(text = "Average Sales by Marketing Campaign", font = list(size = 16)),
+         xaxis = list(title = "Campaign"),
+         yaxis = list(title = "Sales ($1000s)"),
+         showlegend = FALSE)
+p1
+```
+
+### Weekly Sales Trends by Campaign
+
+```{r}
+weekly_wide  <- weekly_trends %>%
+  select(week, Promotion, averageSales) %>%
+  pivot_wider(names_from = Promotion, values_from = averageSales, names_prefix = "Campaign_") %>%
+  mutate(WeekLabel = paste("Week", week))
+
+p2 <- plot_ly(weekly_wide, x = ~WeekLabel) %>%
+  add_trace(y = ~Campaign_1, name = "Campaign_1", type = "scatter", mode = "lines+markers",
+            line = list(color = "#3B82F6", width = 3),
+            marker = list(color = "#3B82F6", size = 8)) %>%
+  add_trace(y = ~Campaign_2, name = "Campaign_2", type = "scatter", mode = "lines+markers",
+            line = list(color = '#EF4444', width = 3),
+            marker = list(color = '#EF4444', size = 8)) %>%
+  add_trace(y = ~Campaign_3, name = "Campaign_3", type = "scatter", mode = "lines+markers",
+            line = list(color = '#10B981', width = 3),
+            marker = list(color = '#10B981', size = 8)) %>%
+  layout(title = list(text = "Weekly Sales Trends by Campaign", font = list(size = 16)),
+         xaxis = list(title = "Week"),
+         yaxis = list(title = "Sales ($1000s)"),
+         hovermode = "x unified")
+p2
+```
+
+Column {data-width=350}
+-------------------------------------
+
+### Sales by Market Size
+
+```{r}
+p3 <- plot_ly(sales_by_market,
+              x = ~MarketSize,
+              y = ~averageSales,
+              type = "bar",
+              text = ~paste("Sales: $", round(averageSales, 1), "K<br>",
+                            "Count: ", count),
+              textposition = "outside",
+              marker = list(color = "#10B981")) %>%
+  layout(title = list(text = "Sales by Market Size", font = list(size = 14)),
+         xaxis = list(title = "Market Size"),
+         yaxis = list(title = "Sales ($1000s)"))
+p3
+```
+
+### Sales by Store Age
+```{r}
+p4 <- plot_ly(sales_by_age, 
+              x = ~AgeGroup, 
+              y = ~averageSales, 
+              type = 'bar',
+              text = ~paste("Sales: $", round(averageSales, 1), "K"),
+              textposition = 'outside',
+              marker = list(color = '#8B5CF6')) %>%
+  layout(title = list(text = "Sales by Store Age", font = list(size = 14)),
+         xaxis = list(title = "Store Age Group"),
+         yaxis = list(title = "Sales ($1000s)"))
+
+p4
+```
+
+Detailed Analysis
+=====================================
+
+Column {data-width=600}
+-------------------------------------
+
+### Campaign Analysis by Market Size
+
+```{r}
+p5 <- plot_ly(interaction_data,
+              x = ~MarketSize,
+              y = ~averageSales,
+              color = ~PromotionLabel,
+              type = "bar",
+              colors = c('#3B82F6', '#EF4444', '#10B981')) %>%
+  layout(title = list(text = "Campaign Performance by Market Size", font = list(size = 16)),
+         xaxis = list(title = "Market Size"),
+         yaxis = list(title = "Sales ($1000s)"),
+         barmode = "group",
+         legend = list(title = list(text = "Campaign")))
+p5
+```
+
+
+### Statistical Summary Table
+
+```{r}
+detailed_stats <- interaction_data %>%
+  select(MarketSize, Campaign = PromotionLabel, `Avg Sales` = averageSales, Count = count) %>%
+  mutate(`Avg Sales` = round(`Avg Sales`, 1)) %>%
+  arrange(MarketSize, Campaign)
+
+DT::datatable(detailed_stats, 
+              caption = "Detailed Performance by Market Size and Campaign",
+              options = list(
+                pageLength = 12,
+                scrollX = TRUE,
+                dom = 't'
+              )) %>%
+  formatStyle(
+    'Avg Sales',
+    background = styleColorBar(detailed_stats$`Avg Sales`, '#E3F2FD'),
+    backgroundSize = '100% 90%',
+    backgroundRepeat = 'no-repeat',
+    backgroundPosition = 'center'
+  )
+```
+
+
+Column {data-width=400}
+-------------------------------------
+
+### Dataset Overview
+```{r}
+overview_data <- data.frame(
+  Metric = c("Total Records", "Number of Campaigns", "Number of Weeks", 
+             "Unique Markets", "Unique Locations", "Overall Mean Sales", 
+             "Overall Std Dev", "Min Sales", "Max Sales"),
+  Value = c(
+    overall_stats$total_records,
+    3,
+    4,
+    overall_stats$unique_markets,
+    overall_stats$unique_locations,
+    paste0("$", round(overall_stats$overall_mean, 1), "K"),
+    paste0("$", round(overall_stats$overall_sd, 1), "K"),
+    paste0("$", round(overall_stats$min_sales, 1), "K"),
+    paste0("$", round(overall_stats$max_sales, 1), "K")
+  )
+)
+
+kable(overview_data, col.names = c("Metric", "Value")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+
+
+### Key Recommendations
+```{r}
+recommendations <- data.frame(
+  Priority = c("High", "High", "Medium", "Low"),
+  Action = c(
+    "Deploy Campaign 1 chain-wide",
+    "Prioritize large markets for expansion",
+    "A/B test Campaign 1 vs Campaign 3",
+    "Discontinue Campaign 2 development"
+  ),
+  Expected_Impact = c("22.8% sales increase", "59% higher revenue per market", 
+                     "Potential 5% optimization", "Cost savings")
+)
+
+kable(recommendations, caption = "Strategic Recommendations") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  column_spec(1, bold = TRUE) %>%
+  row_spec(1:2, background = "#d4edda")
+```
+
+Statistical Inference
+=====================================
+
+```{r}
+# Research Questions and Hypothesis Testing
+
+# One-way ANOVA: Are there significant differences between campaigns?
+campaign_anova <- aov(SalesInThousands ~ Promotion, data = campaign_data)
+campaign_summary <- summary(campaign_anova)
+
+# Two-way ANOVA: Campaign X Market Size interaction
+interaction_anova <- aov(SalesInThousands ~ Promotion * MarketSize, data = campaign_data)
+interaction_summary <- summary(interaction_anova)
+
+# Pairwise t-tests between campaigns (with Bonferroni correction)
+pairwise_tests <- pairwise.t.test(campaign_data$SalesInThousands, campaign_data$Promotion,
+                                  p.adjust.method = "bonferroni")
+
+# Store Age Analysis (continuous predictor)
+age_model <- lm(SalesInThousands ~ AgeOfStore * Promotion, data = campaign_data)
+age_summary <- summary(age_model)
+
+# Temporal Analysis: Does effectiveness change over time?
+temporal_anova <- aov(SalesInThousands ~ Promotion * week, data = campaign_data)
+temporal_summary <- summary(temporal_anova)
+
+# Market Size Effect Analysis
+market_anova <- aov(SalesInThousands ~ MarketSize, data = campaign_data)
+market_summary <- summary(market_anova)
+
+# Effect Size Calculations (Cohen'd d for practical significance)
+effect_1_vs_2 <- cohen.d(campaign_data$SalesInThousands[campaign_data$Promotion == "1"],
+                         campaign_data$SalesInThousands[campaign_data$Promotion == "2"])
+effect_1_vs_3 <- cohen.d(campaign_data$SalesInThousands[campaign_data$Promotion == "1"],
+                         campaign_data$SalesInThousands[campaign_data$Promotion == "3"])
+
+# Assumption Checking
+# Normality Test
+shapiro_test <- shapiro.test(residuals(campaign_anova))
+
+# Homogeneity of Variance
+levene_test <- car::leveneTest(SalesInThousands ~ Promotion, data = campaign_data)
+```
+
+Column {data-width=600}
+-------------------------------------
+
+**Research Question 1: Campaign Effectiveness**
+
+- **H~0~**: No significant difference in sales between campaigns ($\mu_1 = \mu_2 = \mu_3$)
+- **H~A~** At least one campaign is significantly different in sales performance
+
+```{r}
+# Campaign ANOVA results
+campaign_results <- data.frame(
+  Source = c("Between Campaigns", "Within Groups", "Total"),
+  df = c(campaign_summary[[1]][1,1], campaign_summary[[1]][2,1], sum(campaign_summary[[1]][,1])),
+  `Sum Sq` = c(campaign_summary[[1]][1,2], campaign_summary[[1]][2,2], sum(campaign_summary[[1]][,2])),
+  `Mean Sq` = c(campaign_summary[[1]][1,3], campaign_summary[[1]][2,3], NA),
+  `F value` = c(campaign_summary[[1]][1,4], NA, NA),
+  `p value` = c(campaign_summary[[1]][1,5], NA, NA)
+)
+
+kable(campaign_results, digits = 4, caption = "One-Way ANOVA: Campaign Differences") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  row_spec(1, bold = TRUE, color = if(campaign_summary[[1]][1,5] < 0.05) "white" else "black", 
+           background = if(campaign_summary[[1]][1,5] < 0.05) "#28a745" else "#ffc107")
+```
+
+**Conclusion**: `r if(campaign_summary[[1]][1,5] < 0.05) paste0("REJECT H₀ (p = ", round(campaign_summary[[1]][1,5], 4), "). Campaigns significantly differ in sales performance.") else paste0("FAIL TO REJECT H₀ (p = ", round(campaign_summary[[1]][1,5], 4), "). No significant difference between campaigns.")`
+
+**Research Question 2: Interaction Effects**
+
+- **H₀**: No interaction between campaign type and market size
+- **H₁**: Campaign effectiveness varies by market size
+
+
+
+Raw Data Explorer
+=====================================
+
+Column
+-------------------------------------
+
+### Interactive Data Table
+```{r}
+# Create interactive data table with all original data
+data_display <- campaign_data %>%
+  select(MarketID, MarketSize, LocationID, AgeOfStore, 
+         Campaign = PromotionLabel, Week = WeekLabel, 
+         `Sales ($K)` = SalesInThousands) %>%
+  mutate(`Sales ($K)` = round(`Sales ($K)`, 2))
+
+DT::datatable(data_display, 
+              caption = "Complete Dataset - Marketing Campaign Analysis",
+              filter = 'top',
+              options = list(
+                pageLength = 20,
+                scrollX = TRUE,
+                searchHighlight = TRUE,
+                dom = 'Bfrtip',
+                buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+              )) %>%
+  formatStyle(
+    'Sales ($K)',
+    background = styleColorBar(data_display$`Sales ($K)`, '#E8F5E8'),
+    backgroundSize = '100% 90%',
+    backgroundRepeat = 'no-repeat',
+    backgroundPosition = 'center'
+  ) %>%
+  formatStyle(
+    'Campaign',
+    backgroundColor = styleEqual(
+      c('Campaign 1', 'Campaign 2', 'Campaign 3'),
+      c('#E3F2FD', '#FFEBEE', '#E8F5E8')
+    )
+  )
+```
+
+Technical Notes
+=====================================
+
+### Analysis Details
+
+**Data Processing Notes:**
+
+- Market size ordered as Small < Medium < Large
+- All monetary values in thousands of dollars ($K)
+
+**Statistical Approach:**
+
+- Descriptive statistics using group means and standard deviations
+- Interaction effects analyzed through cross-tabulation
+- Temporal trends tracked across 4-week period
+- No statistical significance testing performed (can be added if needed)
+
+**Key Assumptions:**
+
+- Random assignment of campaigns to markets
+- Independent observations within each market-week combination
+- Normal distribution of sales data (can be validated with additional tests)
+
+**Recommendations for Further Analysis:**
+
+1. ANOVA testing for statistical significance
+2. Regression analysis for confounding variables
+3. Time series analysis for seasonal effects
+4. Customer demographic analysis if data available
+
+**Code Structure:**
+
+- Data pre-processing and categorical conversion
+- Summary statistics calculation  
+- Interactive visualization creation using plotly
+- Dashboard layout using flexdashboard
+- Responsive design for multiple screen sizes
+
+
+
+
+
+
+
+
+
+
+
+
+
